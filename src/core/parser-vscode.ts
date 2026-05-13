@@ -505,7 +505,8 @@ function normalizeSessionMode(modeId: string | undefined): string {
   const lower = modeId.toLowerCase();
   if (lower.includes('plan')) return 'plan';
   // Other custom agents/chatmodes — use the filename stem
-  const decoded = decodeURIComponent(modeId);
+  let decoded: string;
+  try { decoded = decodeURIComponent(modeId); } catch { decoded = modeId; }
   const lastSlash = decoded.lastIndexOf('/');
   const filename = lastSlash >= 0 ? decoded.substring(lastSlash + 1) : decoded;
   const stem = filename.replace(/\.(agent|chatmode)\.md$/i, '');
@@ -978,9 +979,9 @@ export function parseSessionFile(sessionFile: string, wsId: string, wsName: stri
     }
     // Apply session-level mode as agentMode — it's the definitive source
     // for distinguishing agent/ask/plan/edit/custom modes.
-    if (sessionMode) {
-      req.agentMode = sessionMode;
-    }
+    // When absent, clear the per-request agent.id (a participant identifier
+    // like "copilot") so downstream analytics don't misclassify it as a mode.
+    req.agentMode = sessionMode;
     return req;
   });
   const hasDevcontainer = detectDevcontainerFromRequests(parsedRequests);

@@ -9,15 +9,21 @@ import { WorkType } from './types';
 import { MODEL_MULTIPLIERS, MODEL_TOKEN_RATES } from './constants';
 
 /* ---- File-URI helper ---- */
+
+/** decodeURIComponent that returns the input unchanged on malformed sequences (e.g. a literal `%` in a path). */
+function safeDecode(s: string): string {
+  try { return decodeURIComponent(s); } catch { return s; }
+}
+
 /**
  * Convert a `file://` URI to a local filesystem path, handling Windows drive-letter
- * URIs (e.g. `file:///C:/Users/...`) correctly.  Falls back to decodeURIComponent
- * stripping for non-URI strings so callers don't need to branch.
+ * URIs (e.g. `file:///C:/Users/...`) correctly.  Falls back to decoding
+ * for non-URI strings so callers don't need to branch.
  */
 export function fileUriToPath(raw: string): string {
-  if (!raw.startsWith('file://')) return decodeURIComponent(raw);
+  if (!raw.startsWith('file://')) return safeDecode(raw);
   // Strip scheme: file:///C:/foo → /C:/foo   file:///home/u → /home/u
-  let p = decodeURIComponent(raw.replace(/^file:\/\//, ''));
+  let p = safeDecode(raw.replace(/^file:\/\//, ''));
   // On Windows the URI has an extra leading slash before the drive letter: /C:/...
   if (/^\/[A-Za-z]:/.test(p)) p = p.slice(1);
   return p;

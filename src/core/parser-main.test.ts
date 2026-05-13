@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Dirent } from 'fs';
+import path from 'path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./parser-vscode', () => ({
@@ -68,7 +69,7 @@ import {
   collectExternalHarnessesSync,
 } from './parser-harnesses';
 
-const XCODE_DIR = '/Users/test/.config/github-copilot/xcode';
+const XCODE_DIR = path.join('/Users/test/.config/github-copilot/xcode');
 
 function makeResult(): ParseResult {
   return {

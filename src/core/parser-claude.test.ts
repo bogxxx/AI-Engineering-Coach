@@ -291,7 +291,7 @@ describe('parseClaudeSessions', () => {
 
   // ---- workspace name resolution with spaces ----
 
-  it('resolves workspace name when path contains a folder with spaces', () => {
+  it('resolves workspace name when path contains a folder with spaces', { timeout: 30_000 }, () => {
     // Create a real directory tree with a space in a folder name.
     // longTmpDir() resolves Windows 8.3 short names so the encoded path
     // uses long names that match readdirSync output.

@@ -1456,7 +1456,9 @@
 
 /* ── CSS Tooltips (data-tip) ───────────────────────────────────── */
 [data-tip] { position: relative; }
-[data-tip]:hover::after {
+[data-tip]:focus { outline: 1px solid var(--focus-border, #58a6ff); outline-offset: 2px; border-radius: 3px; }
+[data-tip]:hover::after,
+[data-tip]:focus::after {
   content: attr(data-tip);
   position: absolute; left: 50%; bottom: 100%;
   transform: translateX(-50%);
@@ -1475,7 +1477,8 @@
   z-index: 1000;
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
 }
-[data-tip]:hover::before {
+[data-tip]:hover::before,
+[data-tip]:focus::before {
   content: '';
   position: absolute; left: 50%; bottom: 100%;
   transform: translateX(-50%) translateY(100%);
@@ -1484,8 +1487,8 @@
   pointer-events: none;
   z-index: 1000;
 }
-[data-tip].tip-left:hover::after { left: 0; transform: none; }
-[data-tip].tip-left:hover::before { left: 12px; transform: translateY(100%); }
+[data-tip].tip-left:hover::after, [data-tip].tip-left:focus::after { left: 0; transform: none; }
+[data-tip].tip-left:hover::before, [data-tip].tip-left:focus::before { left: 12px; transform: translateY(100%); }
 .img-card-overlay {
   position: absolute; bottom: 0; left: 0; right: 0;
   padding: 6px 10px;

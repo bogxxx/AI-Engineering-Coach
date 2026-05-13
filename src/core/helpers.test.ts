@@ -4,7 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, it, expect } from 'vitest';
-import { toDateStr, startOfDay, endOfDay, isoWeek, normalizeModel, modelMultiplier, classifyWorkType } from './helpers';
+import { fileUriToPath, toDateStr, startOfDay, endOfDay, isoWeek, normalizeModel, modelMultiplier, classifyWorkType } from './helpers';
+
+describe('fileUriToPath', () => {
+  it('converts a Windows file URI', () => {
+    expect(fileUriToPath('file:///C:/Users/me/code')).toBe('C:/Users/me/code');
+  });
+  it('converts a Unix file URI', () => {
+    expect(fileUriToPath('file:///home/user/code')).toBe('/home/user/code');
+  });
+  it('decodes percent-encoded characters', () => {
+    expect(fileUriToPath('file:///C:/My%20Folder/file.txt')).toBe('C:/My Folder/file.txt');
+  });
+  it('returns a plain path unchanged', () => {
+    expect(fileUriToPath('/home/user/code')).toBe('/home/user/code');
+  });
+  it('does not throw on a path with a literal % character', () => {
+    expect(fileUriToPath('/home/user/100%done')).toBe('/home/user/100%done');
+  });
+});
 
 describe('toDateStr', () => {
   it('formats a timestamp as YYYY-MM-DD', () => {

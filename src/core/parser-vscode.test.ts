@@ -424,7 +424,9 @@ describe('parseSessionFile — basic VS Code session', () => {
       const session = parseSessionFile(filePath, 'ws', 'wp', 'Local Agent');
       expect(session).not.toBeNull();
       expect(session!.requests[0].agentName).toBe('GitHub Copilot');
-      expect(session!.requests[0].agentMode).toBe('copilot');
+      // Without inputState.mode.id, agentMode is cleared to '' so the
+      // participant id ("copilot") doesn't pollute mode analytics.
+      expect(session!.requests[0].agentMode).toBe('');
     });
   });
 

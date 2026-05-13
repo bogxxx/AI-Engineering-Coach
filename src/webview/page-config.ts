@@ -432,7 +432,7 @@ function renderReviewCard(review: ContextReviewResult): ComponentChildren {
           ${cats.map(([cat, score]) => {
             const c = score >= 45 ? COLORS.green : score >= 25 ? COLORS.yellow : COLORS.red;
             const tip = CATEGORY_TOOLTIPS[cat] || '';
-            return html`<div style="text-align:center;min-width:42px;" data-tip=${tip || undefined}><div style="font-size:12px;font-weight:700;color:${c};">${score}</div><div style="font-size:8px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.3px;">${(CATEGORY_LABELS[cat] || cat).slice(0, 5)}</div></div>`;
+            return html`<div style="text-align:center;min-width:42px;" data-tip=${tip || undefined} tabindex=${tip ? 0 : undefined} aria-label=${tip || undefined}><div style="font-size:12px;font-weight:700;color:${c};">${score}</div><div style="font-size:8px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.3px;">${(CATEGORY_LABELS[cat] || cat).slice(0, 5)}</div></div>`;
           })}
         </div>
       </div>
@@ -755,7 +755,7 @@ function rankList(title: string, items: { label: string; count: number }[], tota
     <div style="font-size:11px;font-weight:500;color:var(--text-muted);margin-bottom:6px;">${title}</div>
     ${items.map(it => {
       const pct = total > 0 ? Math.round(it.count / total * 100) : 0;
-      return html`<div class="tip-left" style="display:flex;align-items:center;gap:6px;margin-bottom:4px;" data-tip=${it.label}>
+      return html`<div class="tip-left" style="display:flex;align-items:center;gap:6px;margin-bottom:4px;" data-tip=${it.label} tabindex=${0} aria-label=${it.label}>
         <div style="flex:1;min-width:0;">
           <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:1px;min-width:0;">
             <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">${it.label}</span>
@@ -772,7 +772,7 @@ function rankList(title: string, items: { label: string; count: number }[], tota
 
 function sBar(label: string, pct: number, tooltip?: string): ComponentChildren {
   const c = pct >= 45 ? COLORS.green : pct >= 25 ? COLORS.yellow : COLORS.red;
-  return html`<div data-tip=${tooltip || undefined}><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;"><span>${label}</span><span style="color:${c};font-weight:600;">${pct}%</span></div><div style="height:6px;border-radius:3px;background:var(--bg-secondary, #161b22);overflow:hidden;"><div style="width:${pct}%;height:100%;background:${c};border-radius:3px;"></div></div></div>`;
+  return html`<div data-tip=${tooltip || undefined} tabindex=${tooltip ? 0 : undefined} aria-label=${tooltip || undefined}><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;"><span>${label}</span><span style="color:${c};font-weight:600;">${pct}%</span></div><div style="height:6px;border-radius:3px;background:var(--bg-secondary, #161b22);overflow:hidden;"><div style="width:${pct}%;height:100%;background:${c};border-radius:3px;"></div></div></div>`;
 }
 
 /* ── Config Files ─────────────────────────────────────────────────── */

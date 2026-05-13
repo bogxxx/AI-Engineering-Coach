@@ -217,8 +217,8 @@ export function reconstructFromJsonl(fpath: string): Record<string, unknown> | n
   if (Object.keys(state).length === 0) return null;
   // Restore the initial mode if it was overwritten by patches
   if (initialModeId) {
-    const is = state.inputState as JsonObject | undefined;
-    if (is) {
+    const is = state.inputState;
+    if (is && typeof is === 'object' && !Array.isArray(is)) {
       is.mode = { id: initialModeId } as unknown as JsonValue;
     }
   }

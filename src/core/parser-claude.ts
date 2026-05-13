@@ -226,8 +226,8 @@ function applyClaudeToolBlock(
 
   // Claude Code's Skill tool: { name: 'Skill', input: { skill: '<name>', args: '...' } }
   if (block.name === 'Skill') {
-    const skillName = getInputPath(block.input, 'skill');
-    if (skillName) data.skillsUsed.push(skillName);
+    const skillName = getInputPath(block.input, 'skill')?.trim();
+    if (skillName && !skillName.includes('ai_toolkit')) data.skillsUsed.push(skillName);
     return;
   }
   if (CLAUDE_WRITE_TOOLS.has(block.name)) {
