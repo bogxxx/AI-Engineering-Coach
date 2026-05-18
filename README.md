@@ -141,7 +141,3 @@ Any use of third-party trademarks or logos are subject to those third-party's po
 ## Disclaimer
 
 This project is an open-source community effort by Microsoft employees. It is **not** an official Microsoft product and is not part of any Microsoft service or support offering. It is provided as-is with no warranties or guarantees.
-
-## Contributors
-
-Sanjay Singh, Joy Distelbrink, Tamas Boncz, Aymen Furter
