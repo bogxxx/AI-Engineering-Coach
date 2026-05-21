@@ -25,9 +25,7 @@ export class DashboardSidebarProvider implements vscode.WebviewViewProvider {
       localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'dist')],
     };
 
-    const nonce = getNonce();
-
-    webviewView.webview.html = this.renderHtml(nonce);
+    webviewView.webview.html = this.renderHtml(webviewView.webview);
 
     webviewView.webview.onDidReceiveMessage((msg: { command: string }) => {
       vscode.commands.executeCommand(msg.command);
@@ -36,10 +34,12 @@ export class DashboardSidebarProvider implements vscode.WebviewViewProvider {
 
   refresh(): void {
     if (!this.webviewView) return;
-    this.webviewView.webview.html = this.renderHtml(getNonce());
+    this.webviewView.webview.html = this.renderHtml(this.webviewView.webview);
   }
 
-  private renderHtml(nonce: string): string {
+  private renderHtml(webview: vscode.Webview): string {
+    const nonce = getNonce();
+    const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview', 'sidebar.css'));
     const stats = loadSidebarStats();
     const statsHtml = stats
       ? `
@@ -57,65 +57,8 @@ export class DashboardSidebarProvider implements vscode.WebviewViewProvider {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
-<style>
-body {
-  background: transparent;
-  color: var(--vscode-foreground);
-  font-family: var(--vscode-font-family);
-  font-size: var(--vscode-font-size);
-  padding: 12px;
-  margin: 0;
-}
-h3 { margin: 0 0 6px; font-weight: 600; font-size: 13px; }
-.sidebar-desc { margin: 0 0 12px; color: var(--vscode-descriptionForeground); font-size: 11px; line-height: 1.4; }
-.sidebar-card {
-  padding: 12px;
-  border-radius: 8px;
-  background: var(--vscode-editor-background);
-  border: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.06));
-  margin-bottom: 12px;
-}
-.sidebar-label {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--vscode-descriptionForeground);
-  margin: 0 0 4px;
-}
-.sidebar-harnesses {
-  font-size: 12px;
-  line-height: 1.5;
-  margin: 0 0 10px;
-  color: var(--vscode-foreground);
-}
-.sidebar-note {
-  color: var(--vscode-descriptionForeground);
-  font-size: 11px;
-  line-height: 1.5;
-  margin: 0;
-}
-button {
-  display: block;
-  width: 100%;
-  padding: 8px 12px;
-  margin-bottom: 6px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-  font-family: var(--vscode-font-family);
-  color: var(--vscode-button-foreground);
-  background: var(--vscode-button-background);
-}
-button:hover { background: var(--vscode-button-hoverBackground); }
-button.secondary {
-  color: var(--vscode-button-secondaryForeground);
-  background: var(--vscode-button-secondaryBackground);
-}
-button.secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
-</style>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+<link href="${String(styleUri)}" rel="stylesheet">
 </head>
 <body>
 <h3>AI Engineer Coach</h3>

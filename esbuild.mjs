@@ -105,6 +105,9 @@ const bundledCss = cssSources
   .join('\n\n');
 fs.writeFileSync(path.join(webviewDist, 'styles.css'), `${bundledCss}\n`);
 
+// Copy sidebar CSS separately (sidebar is its own webview)
+fs.copyFileSync('src/webview/styles-sidebar.css', path.join(webviewDist, 'sidebar.css'));
+
 console.log('Build complete.');
 
 if (isWatch) {

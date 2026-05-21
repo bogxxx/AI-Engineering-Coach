@@ -1,0 +1,61 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See LICENSE in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+  background: transparent;
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  padding: 12px;
+  margin: 0;
+}
+h3 { margin: 0 0 6px; font-weight: 600; font-size: 13px; }
+.sidebar-desc { margin: 0 0 12px; color: var(--vscode-descriptionForeground); font-size: 11px; line-height: 1.4; }
+.sidebar-card {
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.06));
+  margin-bottom: 12px;
+}
+.sidebar-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vscode-descriptionForeground);
+  margin: 0 0 4px;
+}
+.sidebar-harnesses {
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0 0 10px;
+  color: var(--vscode-foreground);
+}
+.sidebar-note {
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 0;
+}
+button {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  margin-bottom: 6px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: var(--vscode-font-family);
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+}
+button:hover { background: var(--vscode-button-hoverBackground); }
+button.secondary {
+  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground);
+}
+button.secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
