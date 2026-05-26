@@ -6,10 +6,41 @@
 /* LLM schemas and request helpers for the dashboard panel. */
 
 import * as vscode from 'vscode';
+import type { JsonSchemaSpec as HttpJsonSchemaSpec, LlmBackend } from '../core/llm-http';
+import {
+  callHttpChatCompletion,
+  isCursorNativeLlmAvailable,
+  isHttpLlmConfigured,
+  resolveHttpLlmConfig,
+} from '../core/llm-http';
 
-export interface JsonSchemaSpec {
-  name: string;
-  schema: Record<string, unknown>;
+export type JsonSchemaSpec = HttpJsonSchemaSpec;
+export type { LlmBackend };
+
+export function llmBackendToSource(backend: LlmBackend): 'llm' | 'llm-cursor' | 'llm-opencode' | 'heuristic' | 'builtin' {
+  if (backend === 'opencode-http') return 'llm-opencode';
+  if (backend === 'cursor-http') return 'llm-cursor';
+  if (backend === 'copilot' || backend === 'openai-http') return 'llm';
+  return 'heuristic';
+}
+
+export function vscodeMessagesToChat(messages: vscode.LanguageModelChatMessage[]): import('../core/llm-http').ChatMessage[] {
+  const out: import('../core/llm-http').ChatMessage[] = [];
+  for (const message of messages) {
+    const role = message.role === vscode.LanguageModelChatMessageRole.Assistant ? 'assistant' : 'user';
+    const parts = message.content;
+    const text = Array.isArray(parts)
+      ? parts.filter(part => part instanceof vscode.LanguageModelTextPart).map(part => (part as vscode.LanguageModelTextPart).value).join('\n')
+      : String(parts ?? '');
+    if (text.trim()) out.push({ role, content: text });
+  }
+  return out;
+}
+
+let lastLlmBackend: LlmBackend = 'none';
+
+export function getLastLlmBackend(): LlmBackend {
+  return lastLlmBackend;
 }
 
 function structuredOutputOptions(spec: JsonSchemaSpec): Record<string, unknown> {
@@ -311,6 +342,12 @@ const LLM_REQUEST_TIMEOUT_MS = 90_000;
  * nothing is available so callers can surface a useful message.
  */
 export async function isLlmAvailable(): Promise<boolean> {
+  if (await isCopilotLlmAvailable()) return true;
+  if (await isHttpLlmConfigured()) return true;
+  return false;
+}
+
+async function isCopilotLlmAvailable(): Promise<boolean> {
   try {
     if (!vscode.lm) return false;
     const any = await vscode.lm.selectChatModels({});
@@ -329,24 +366,44 @@ async function selectModel(): Promise<vscode.LanguageModelChat> {
   const any = await vscode.lm.selectChatModels({});
   if (any.length > 0) return any[0];
   throw new Error(
-    'No language model available. AI triage needs GitHub Copilot in VS Code, or use Cursor with heuristic mode (automatic when Copilot is absent).',
+    'No language model available. In Cursor: set an API key via "AI Engineer Coach: Configure LLM API Key" (same key as Cursor Settings → Models), or use GitHub Copilot in VS Code.',
   );
 }
 
-/** Race a promise against a timeout. Rejects with a clear message on timeout. */
-function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms);
-    p.then(v => { clearTimeout(t); resolve(v); }, e => {
-      clearTimeout(t);
-      reject(e instanceof Error ? e : new Error(String(e)));
-    });
-  });
+async function callWithFallback(
+  messages: vscode.LanguageModelChatMessage[],
+  jsonSchema?: JsonSchemaSpec,
+): Promise<{ text: string; backend: LlmBackend }> {
+  if (await isCopilotLlmAvailable()) {
+    try {
+      const model = await selectModel();
+      const text = jsonSchema
+        ? await callCopilotJson(model, messages, jsonSchema)
+        : await callCopilotText(model, messages);
+      lastLlmBackend = 'copilot';
+      return { text, backend: 'copilot' };
+    } catch (err) {
+      if (!(await isHttpLlmConfigured())) throw err;
+    }
+  }
+
+  const httpConfig = await resolveHttpLlmConfig({ appName: vscode.env.appName });
+  if (!httpConfig) {
+    if (await isCursorNativeLlmAvailable(vscode.env.appName)) {
+      throw new Error(
+        'Cursor is signed in, but native Cursor API calls are not available to extensions yet. Add an OpenAI-compatible API key: AI Engineer Coach → Configure LLM API Key.',
+      );
+    }
+    throw new Error('No language model available.');
+  }
+
+  const chatMessages = vscodeMessagesToChat(messages);
+  const text = await callHttpChatCompletion(httpConfig, chatMessages, jsonSchema, LLM_REQUEST_TIMEOUT_MS);
+  lastLlmBackend = httpConfig.backend;
+  return { text, backend: httpConfig.backend };
 }
 
-export async function callLlm(messages: vscode.LanguageModelChatMessage[]): Promise<string> {
-  const model = await selectModel();
-
+async function callCopilotText(model: vscode.LanguageModelChat, messages: vscode.LanguageModelChatMessage[]): Promise<string> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= LLM_MAX_RETRIES; attempt++) {
     const cts = new vscode.CancellationTokenSource();
@@ -369,13 +426,14 @@ export async function callLlm(messages: vscode.LanguageModelChatMessage[]): Prom
   throw lastError;
 }
 
-export async function callLlmJson<T>(messages: vscode.LanguageModelChatMessage[], jsonSchema?: JsonSchemaSpec): Promise<T> {
-  const model = await selectModel();
-
-  const options: vscode.LanguageModelChatRequestOptions = jsonSchema
-    ? { modelOptions: structuredOutputOptions(jsonSchema) }
-    : {};
-
+async function callCopilotJson(
+  model: vscode.LanguageModelChat,
+  messages: vscode.LanguageModelChatMessage[],
+  jsonSchema: JsonSchemaSpec,
+): Promise<string> {
+  const options: vscode.LanguageModelChatRequestOptions = {
+    modelOptions: structuredOutputOptions(jsonSchema),
+  };
   let lastError: unknown;
   let parseFailures = 0;
   const retryMessages = [...messages];
@@ -386,24 +444,18 @@ export async function callLlmJson<T>(messages: vscode.LanguageModelChatMessage[]
       const response = await model.sendRequest(retryMessages, options, cts.token);
       let text = '';
       for await (const chunk of response.text) text += chunk;
-      try {
-        return JSON.parse(text.trim()) as T;
-      } catch {
-        return parseLlmJson<T>(text);
-      }
+      return text;
     } catch (err) {
       lastError = err;
       if (err instanceof vscode.CancellationError) { cts.dispose(); throw err; }
-      // If structured output isn't supported, fall back to plain mode
-      if (attempt === 0 && jsonSchema && lastError instanceof Error && /response_format|modelOptions|not supported/i.test(lastError.message)) {
+      if (attempt === 0 && lastError instanceof Error && /response_format|modelOptions|not supported/i.test(lastError.message)) {
         options.modelOptions = undefined;
       }
-      // On parse failures, nudge the model to return valid JSON on the next attempt
       if (lastError instanceof Error && /JSON|parse/i.test(lastError.message)) {
         parseFailures++;
         if (retryMessages.length === messages.length) {
           retryMessages.push(vscode.LanguageModelChatMessage.User(
-            'Your previous response was not valid JSON. Please respond ONLY with a valid JSON object or array, no markdown fences, no commentary.'
+            'Your previous response was not valid JSON. Please respond ONLY with a valid JSON object or array, no markdown fences, no commentary.',
           ));
         }
       }
@@ -416,4 +468,29 @@ export async function callLlmJson<T>(messages: vscode.LanguageModelChatMessage[]
     ? `LLM returned invalid JSON after ${LLM_MAX_RETRIES + 1} attempts. Please try again.`
     : (lastError instanceof Error ? lastError.message : 'LLM request failed after retries');
   throw new Error(label);
+}
+
+/** Race a promise against a timeout. Rejects with a clear message on timeout. */
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms);
+    p.then(v => { clearTimeout(t); resolve(v); }, e => {
+      clearTimeout(t);
+      reject(e instanceof Error ? e : new Error(String(e)));
+    });
+  });
+}
+
+export async function callLlm(messages: vscode.LanguageModelChatMessage[]): Promise<string> {
+  const { text } = await callWithFallback(messages);
+  return text;
+}
+
+export async function callLlmJson<T>(messages: vscode.LanguageModelChatMessage[], jsonSchema?: JsonSchemaSpec): Promise<T> {
+  const { text } = await callWithFallback(messages, jsonSchema);
+  try {
+    return JSON.parse(text.trim()) as T;
+  } catch {
+    return parseLlmJson<T>(text);
+  }
 }

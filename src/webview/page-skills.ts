@@ -193,6 +193,8 @@ async function runAnalysis(): Promise<void> {
     } as Record<string, unknown>);
 
     const usedHeuristic = result.source === 'heuristic';
+    const usedCursorLlm = result.source === 'llm-cursor';
+    const usedOpenCodeLlm = result.source === 'llm-opencode';
     const strong = (result.triaged || []).filter(t => t.verdict === 'strong').slice(0, 10);
     lastTriaged = strong;
     lastClusters = clusters;
@@ -200,13 +202,17 @@ async function runAnalysis(): Promise<void> {
 
     if (strong.length === 0) {
       statusEl.textContent = usedHeuristic
-        ? `Found ${clusters.length} patterns (pattern matching — no Copilot LLM).`
+        ? `Found ${clusters.length} patterns (pattern matching — configure OpenCode or LLM API key for AI triage).`
         : 'No strong skill opportunities found.';
       render(html`<p class="sk-empty">No repeating agent tasks detected. Your prompts may already be well-served or too diverse.</p>`, customEl);
     } else {
       statusEl.textContent = usedHeuristic
-        ? `${strong.length} skill ${strong.length === 1 ? 'opportunity' : 'opportunities'} found (pattern matching — install GitHub Copilot for AI triage)`
-        : `${strong.length} skill ${strong.length === 1 ? 'opportunity' : 'opportunities'} found`;
+        ? `${strong.length} skill ${strong.length === 1 ? 'opportunity' : 'opportunities'} found (pattern matching — configure OpenCode/Azure or LLM API key for AI triage)`
+        : usedOpenCodeLlm
+          ? `${strong.length} skill ${strong.length === 1 ? 'opportunity' : 'opportunities'} found (OpenCode Azure LLM)`
+          : usedCursorLlm
+            ? `${strong.length} skill ${strong.length === 1 ? 'opportunity' : 'opportunities'} found (Cursor HTTP LLM)`
+            : `${strong.length} skill ${strong.length === 1 ? 'opportunity' : 'opportunities'} found`;
       renderTriageResults(customEl, strong, clusters);
     }
   } catch (err: unknown) {
@@ -394,7 +400,7 @@ async function loadCatalog(container: HTMLElement, clusters: WorkflowCluster[], 
 
 function renderCatalogList(container: HTMLElement, items: CatalogItem[], totalScanned: number, usedHeuristic = false): void {
   render(html`
-    <p class="sk-section-count">${items.length} curated from ${totalScanned} catalog items${usedHeuristic ? ' (keyword matching — install GitHub Copilot for AI picks)' : ''}</p>
+    <p class="sk-section-count">${items.length} curated from ${totalScanned} catalog items${usedHeuristic ? ' (keyword matching — configure LLM API key for AI picks)' : ''}</p>
     <div class="sk-grid">${items.map(item => renderCatalogCard(item))}</div>
   `, container);
 

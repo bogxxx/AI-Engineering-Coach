@@ -15,7 +15,9 @@ import { exportSummaryFiles } from '../summary-export-vscode';
 import {
   callLlm,
   callLlmJson,
+  getLastLlmBackend,
   isLlmAvailable,
+  llmBackendToSource,
   SCHEMA_CATALOG_PICKS,
   SCHEMA_CODE_REVIEW,
   SCHEMA_CONTEXT_REVIEW,
@@ -378,7 +380,7 @@ ${skillDraft}`;
         postResponse(this.webview, msg.id, { questions, source: 'builtin' });
         return;
       }
-      postResponse(this.webview, msg.id, { questions: validated, source: 'llm' });
+      postResponse(this.webview, msg.id, { questions: validated, source: llmBackendToSource(getLastLlmBackend()) });
     } catch (error: unknown) {
       if (error instanceof Error && /No language model available/i.test(error.message)) {
         const questions = generateBuiltinQuiz(context.languages, context.difficulty, seenTopics);
@@ -489,7 +491,7 @@ Generate 3 code comparison rounds for this developer's ecosystem. Mix the catego
         postResponse(this.webview, msg.id, { rounds, source: 'builtin' });
         return;
       }
-      postResponse(this.webview, msg.id, { rounds: validated, source: 'llm' });
+      postResponse(this.webview, msg.id, { rounds: validated, source: llmBackendToSource(getLastLlmBackend()) });
     } catch (error: unknown) {
       if (error instanceof Error && /No language model available/i.test(error.message)) {
         const rounds = generateBuiltinCodeComparison(languages, difficultyLevel, seenTopics);
@@ -767,7 +769,7 @@ Here are the top ${clusterSummaries.length} groups of similar prompts this devel
         suggestedSkillName: item.suggestedSkillName ? String(item.suggestedSkillName) : null,
       }));
 
-      postResponse(this.webview, msg.id, { triaged: result, source: 'llm' });
+      postResponse(this.webview, msg.id, { triaged: result, source: llmBackendToSource(getLastLlmBackend()) });
     } catch (error: unknown) {
       if (error instanceof Error && /No language model available/i.test(error.message)) {
         const triaged = triageSkillsHeuristic(clusterSummaries);
@@ -877,7 +879,7 @@ ${JSON.stringify(candidates)}`;
         vscode.LanguageModelChatMessage.User(userPrompt),
       ], SCHEMA_CATALOG_PICKS);
       const picks = Array.isArray(response) ? response as unknown as typeof response['items'] : response.items ?? [];
-      postResponse(this.webview, msg.id, { items: enrichPicks(picks), source: 'llm' });
+      postResponse(this.webview, msg.id, { items: enrichPicks(picks), source: llmBackendToSource(getLastLlmBackend()) });
     } catch (error: unknown) {
       if (error instanceof Error && /No language model available/i.test(error.message)) {
         const picks = triageCatalogHeuristic(candidates, clusterContext);

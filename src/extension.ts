@@ -22,6 +22,7 @@ import {
   type PendingEntry,
 } from './core/rule-trust';
 import { exportSummaryFiles } from './summary-export-vscode';
+import { initLlmContext, LLM_API_KEY_SECRET } from './core/llm-context';
 
 
 type PanelModule = typeof import('./webview/panel');
@@ -98,6 +99,7 @@ async function reviewPendingTrust(context: vscode.ExtensionContext): Promise<Set
 export function activate(context: vscode.ExtensionContext) {
   installRuntimeDebugHooks();
   runtimeDebug('extension', 'activate', `runtimeLog=${getRuntimeDebugLogPath()}`);
+  initLlmContext(context);
 
   const outputChannel = vscode.window.createOutputChannel('AI Engineer Coach');
   context.subscriptions.push(outputChannel);
@@ -188,6 +190,25 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
       await promptAndReload();
+    }),
+    vscode.commands.registerCommand('aiEngineerCoach.configureLlmApiKey', async () => {
+      const current = await context.secrets.get(LLM_API_KEY_SECRET);
+      const value = await vscode.window.showInputBox({
+        title: 'AI Engineer Coach — LLM API Key',
+        prompt: 'Paste an OpenAI-compatible API key (same as Cursor Settings → Models → OpenAI). Stored locally in Secret Storage.',
+        password: true,
+        value: current ? '********' : undefined,
+        placeHolder: 'sk-...',
+        ignoreFocusOut: true,
+      });
+      if (value === undefined) return;
+      if (value === '' || value === '********') {
+        await context.secrets.delete(LLM_API_KEY_SECRET);
+        vscode.window.showInformationMessage('LLM API key cleared. Heuristic/built-in fallbacks will be used when Copilot is unavailable.');
+        return;
+      }
+      await context.secrets.store(LLM_API_KEY_SECRET, value.trim());
+      vscode.window.showInformationMessage('LLM API key saved. AI triage and Learning will use HTTP LLM when Copilot is unavailable.');
     }),
   );
 

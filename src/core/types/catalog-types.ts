@@ -17,7 +17,7 @@ export interface TriagedCluster {
 export interface SkillTriageResult {
   triaged: TriagedCluster[];
   /** Present when LLM was unavailable and heuristic ranking was used instead. */
-  source?: 'llm' | 'heuristic';
+  source?: 'llm' | 'llm-cursor' | 'llm-opencode' | 'heuristic';
 }
 
 /* ---- Awesome Copilot Catalog ---- */
@@ -42,5 +42,5 @@ export interface CatalogDiscoverResult {
 
 export interface CatalogTriageResult {
   items: CatalogItem[];
-  source?: 'llm' | 'heuristic';
+  source?: 'llm' | 'llm-cursor' | 'llm-opencode' | 'heuristic';
 }

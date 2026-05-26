@@ -72,8 +72,34 @@
         "title": "Review Local Rule Approvals",
         "category": "AI Engineer Coach",
         "icon": "$(shield)"
+      },
+      {
+        "command": "aiEngineerCoach.configureLlmApiKey",
+        "title": "Configure LLM API Key",
+        "category": "AI Engineer Coach",
+        "icon": "$(key)"
       }
     ],
+    "configuration": {
+      "title": "AI Engineer Coach",
+      "properties": {
+        "aiEngineerCoach.llm.httpFallback": {
+          "type": "boolean",
+          "default": true,
+          "description": "When GitHub Copilot LM API is unavailable, use an OpenAI-compatible HTTP API. Auto-reads ~/.config/opencode/opencode.json when present."
+        },
+        "aiEngineerCoach.llm.baseUrl": {
+          "type": "string",
+          "default": "https://api.openai.com/v1",
+          "description": "OpenAI-compatible API base URL. Use the same override URL as Cursor Settings → Models if you use BYOK."
+        },
+        "aiEngineerCoach.llm.model": {
+          "type": "string",
+          "default": "gpt-5-mini",
+          "description": "Model id for HTTP LLM requests (OpenAI-compatible)."
+        }
+      }
+    },
     "viewsContainers": {
       "activitybar": [
         {
