@@ -1,7 +1,11 @@
 <h1 align="center">AI Engineer Coach</h1>
 
 <p align="center">
-Analyze your AI coding assistant usage across VS Code, GitHub Copilot for Xcode, Claude, Codex, OpenCode, and GitHub Copilot CLI.
+Analyze your AI coding assistant usage across VS Code, Cursor, GitHub Copilot for Xcode, Claude, Codex, and OpenCode.
+</p>
+
+<p align="center">
+<a href="https://github.com/bogxxx/AI-Engineering-Coach/blob/main/FORK.md">Cursor/OpenCode fork docs</a>
 </p>
 
 <p align="center">
@@ -58,8 +62,13 @@ The extension is organized into three sections: **Observe**, **Measure**, and **
 | **Xcode Copilot Chat** | `~/.config/github-copilot/xcode/` (requires `sqlite3`) |
 | **Claude** | macOS/Linux: `~/.claude/projects/`<br>Windows: `%USERPROFILE%\.claude\projects\` |
 | **Codex** | macOS/Linux: `~/.codex/sessions/`<br>Windows: `%USERPROFILE%\.codex\sessions\` |
-| **OpenCode** | macOS/Linux: `~/.local/share/opencode/`<br>Windows: `%USERPROFILE%\.local\share\opencode\` |
+| **OpenCode** | macOS/Linux: `~/.local/share/opencode/opencode.db` (SQLite) or legacy JSON storage<br>Windows: `%USERPROFILE%\.local\share\opencode\` |
+| **Cursor** | macOS/Linux/Windows: `~/.cursor/projects/<slug>/agent-transcripts/` |
 | **GitHub Copilot CLI** | `~/.copilot/session-state/` and `~/.copilot/history-session-state/` |
+
+## Cursor IDE
+
+This fork reads Cursor agent transcripts (JSONL). Install with `scripts/dev-install.ps1` and use **Classic** mode. See [FORK.md](https://github.com/bogxxx/AI-Engineering-Coach/blob/main/FORK.md).
 
 ## Getting Started
 

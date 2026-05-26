@@ -1,6 +1,11 @@
 <h1 align="center">AI Engineer Coach</h1>
 
 <p align="center">
+<strong>Cursor + OpenCode fork</strong> — <a href="FORK.md">FORK.md</a> · <a href="https://github.com/bogxxx/AI-Engineering-Coach">bogxxx/AI-Engineering-Coach</a><br>
+Upstream: <a href="https://github.com/microsoft/AI-Engineering-Coach">microsoft/AI-Engineering-Coach</a>
+</p>
+
+<p align="center">
 <strong>better agentic engineering.</strong><br>
 Analyze your AI coding assistant usage — any harness, one dashboard.
 </p>
@@ -53,15 +58,24 @@ AI Engineer Coach reads your local AI session logs and turns them into actionabl
 ## Quick Start
 
 ```bash
-git clone https://github.com/microsoft/ai-engineering-coach.git
-cd ai-engineering-coach
+git clone https://github.com/bogxxx/AI-Engineering-Coach.git
+cd AI-Engineering-Coach
 npm install
 npm run package
 ```
 
+**Cursor (recommended for this fork):** see [FORK.md](FORK.md) or run `scripts/dev-install.ps1`.
+
 Then install the `.vsix`:
 
-**macOS / Linux**
+**Cursor**
+
+```powershell
+cursor --install-extension ai-engineer-coach-*.vsix --force
+cursor --classic .
+```
+
+**macOS / Linux (VS Code)**
 
 ```bash
 code --install-extension ai-engineer-coach-*.vsix
@@ -124,7 +138,7 @@ code --install-extension (Get-ChildItem . -Filter 'ai-engineer-coach-*.vsix' | S
 - **Read-only** — the extension never modifies your session files
 - **Local analysis** — all parsing and analytics run entirely on your machine
 - **No proprietary telemetry** — the extension does not phone home or collect usage data
-- **Optional AI features** — some features (rule compiler, skill finder, context review) use the VS Code built-in Copilot language model API when explicitly invoked by the user
+- **Optional AI features** — personalized skill triage, quizzes, and context review use GitHub Copilot’s Language Model API when available; this fork includes built-in fallbacks for Cursor without Copilot (see [FORK.md](FORK.md))
 
 ---
 

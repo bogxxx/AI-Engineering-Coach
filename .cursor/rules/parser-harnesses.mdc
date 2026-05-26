@@ -1,0 +1,28 @@
+---
+description: Conventions for adding or modifying AI harness parsers
+globs: src/core/parser*.ts
+alwaysApply: false
+---
+
+# Harness parser conventions
+
+## Registration checklist
+
+1. Implement `find*Dirs()` + parse functions in `parser-<harness>.ts`
+2. Register in `EXTERNAL_HARNESSES` (`parser-harnesses.ts`) with sync + optional async collector
+3. Add harness name to `EXTERNAL_HARNESS_SET` (cache reconciliation)
+4. Add UI color in `src/webview/shared.ts` if new harness label
+5. Add trusted roots in `parser-shared.ts` when reading outside workspace
+6. Add tests with temp dirs — no real user paths
+
+## Cursor slug paths
+
+Cursor encodes workspace paths as slugs (`c-Users-alice-myrepo`). `resolveCursorProjectPath` walks the filesystem when possible; tests must not assume a real path exists.
+
+## OpenCode
+
+Prefer SQLite (`opencode.db`) when present; fall back to JSON storage layout. Use shared row mappers in `parser-opencode.ts`.
+
+## Dashboard gate
+
+External harnesses run even when `findLogsDirs()` is empty. Use `hasExternalHarnessSources()` — do not reintroduce Copilot-only early exits in `panel.ts`.

@@ -1,20 +1,20 @@
 {
   "name": "ai-engineer-coach",
   "displayName": "AI Engineer Coach",
-  "description": "Analyze your AI coding assistant usage across VS Code, Xcode, Claude, Codex, and OpenCode. Read-only, zero telemetry.",
+  "description": "Analyze AI coding assistant usage across VS Code, Cursor, Claude, Codex, and OpenCode. Read-only, zero telemetry. Cursor/OpenCode fork.",
   "version": "0.1.0",
   "publisher": "ai-engineer-coach",
   "author": {
-    "name": "Sanjay Singh, Joy Distelbrink, Tamas Boncz, Aymen Furter"
+    "name": "Sanjay Singh, Joy Distelbrink, Tamas Boncz, Aymen Furter; fork: bogxxx"
   },
   "license": "MIT",
   "icon": "assets/icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/microsoft/AI-Engineering-Coach.git"
+    "url": "https://github.com/bogxxx/AI-Engineering-Coach.git"
   },
   "bugs": {
-    "url": "https://github.com/microsoft/AI-Engineering-Coach/issues"
+    "url": "https://github.com/bogxxx/AI-Engineering-Coach/issues"
   },
   "engines": {
     "vscode": "^1.105.0"
@@ -30,6 +30,7 @@
     "claude",
     "codex",
     "opencode",
+    "cursor",
     "productivity",
     "github"
   ],

@@ -30,7 +30,11 @@ Reads session history from OpenAI's Codex terminal agent. Captures prompts, comp
 
 ## OpenCode
 
-Parses session logs from the open-source OpenCode terminal tool that supports multiple LLM backends.
+Parses sessions from the OpenCode tool. This fork reads the **SQLite database** (`opencode.db`) when present, with fallback to legacy JSON session storage.
+
+## Cursor
+
+Parses agent chat transcripts from Cursor IDE. Each session is a JSONL file under `~/.cursor/projects/<workspace-slug>/agent-transcripts/`. Added in the [bogxxx fork](https://github.com/bogxxx/AI-Engineering-Coach).
 
 ## GitHub Copilot for Xcode
 
