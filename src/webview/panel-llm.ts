@@ -310,6 +310,16 @@ const LLM_REQUEST_TIMEOUT_MS = 90_000;
  * fallback list, then any available model. Throws a descriptive error when
  * nothing is available so callers can surface a useful message.
  */
+export async function isLlmAvailable(): Promise<boolean> {
+  try {
+    if (!vscode.lm) return false;
+    const any = await vscode.lm.selectChatModels({});
+    return any.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 async function selectModel(): Promise<vscode.LanguageModelChat> {
   const families = [LLM_FAMILY, 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4'];
   for (const family of families) {
@@ -318,7 +328,9 @@ async function selectModel(): Promise<vscode.LanguageModelChat> {
   }
   const any = await vscode.lm.selectChatModels({});
   if (any.length > 0) return any[0];
-  throw new Error('No language model available. Make sure GitHub Copilot is installed and signed in.');
+  throw new Error(
+    'No language model available. AI triage needs GitHub Copilot in VS Code, or use Cursor with heuristic mode (automatic when Copilot is absent).',
+  );
 }
 
 /** Race a promise against a timeout. Rejects with a clear message on timeout. */

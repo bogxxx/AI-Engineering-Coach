@@ -17,7 +17,7 @@
     "url": "https://github.com/microsoft/AI-Engineering-Coach/issues"
   },
   "engines": {
-    "vscode": "^1.118.0"
+    "vscode": "^1.105.0"
   },
   "categories": [
     "Other",
@@ -34,33 +34,42 @@
     "github"
   ],
   "activationEvents": [
+    "onStartupFinished",
     "onCommand:aiEngineerCoach.open",
     "onCommand:aiEngineerCoach.reload",
     "onCommand:aiEngineerCoach.exportSummary",
     "onCommand:aiEngineerCoach.reviewLocalRules",
     "onView:aiEngineerCoach.welcome"
   ],
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "aiEngineerCoach.open",
-        "title": "AI Engineer Coach: Open Dashboard",
+        "title": "Open Dashboard",
+        "category": "AI Engineer Coach",
         "icon": "$(graph)"
       },
       {
         "command": "aiEngineerCoach.reload",
-        "title": "AI Engineer Coach: Reload Data",
+        "title": "Reload Data",
+        "category": "AI Engineer Coach",
         "icon": "$(refresh)"
       },
       {
         "command": "aiEngineerCoach.exportSummary",
-        "title": "AI Engineer Coach: Export Summary",
+        "title": "Export Summary",
+        "category": "AI Engineer Coach",
         "icon": "$(export)"
       },
       {
         "command": "aiEngineerCoach.reviewLocalRules",
-        "title": "AI Engineer Coach: Review Local Rule Approvals",
+        "title": "Review Local Rule Approvals",
+        "category": "AI Engineer Coach",
         "icon": "$(shield)"
       }
     ],
@@ -122,7 +131,8 @@
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.60.0",
     "@types/node": "25.9.1",
-    "@types/vscode": "1.118.0",
+    "@types/sql.js": "1.4.11",
+    "@types/vscode": "1.105.0",
     "@vitest/coverage-v8": "4.1.6",
     "@vscode/vsce": "3.9.1",
     "cspell": "10.0.0",
@@ -148,6 +158,7 @@
     "htm": "3.1.1",
     "leo-profanity": "1.9.0",
     "preact": "10.29.2",
+    "sql.js": "1.12.0",
     "zod": "4.4.3"
   }
 }

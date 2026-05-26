@@ -5,10 +5,14 @@
 
 /* OpenCode session parser
  *
- * Data layout (macOS):
- *   ~/.local/share/opencode/storage/session/global/<session-id>.json   -- session metadata
- *   ~/.local/share/opencode/storage/message/<session-id>/<msg-id>.json -- message metadata
- *   ~/.local/share/opencode/storage/part/<msg-id>/<part-id>.json       -- content parts (text, tool, step-start/finish)
+ * Data layout:
+ *   Legacy JSON:
+ *     ~/.local/share/opencode/storage/session/global/<session-id>.json
+ *     ~/.local/share/opencode/storage/message/<session-id>/<msg-id>.json
+ *     ~/.local/share/opencode/storage/part/<msg-id>/<part-id>.json
+ *   SQLite (OpenCode 1.14+):
+ *     ~/.local/share/opencode/opencode.db  (session, message, part tables)
+ *   session_diff/*.json stores file diffs only — not parsed here.
  *
  * Sessions have: id, slug, version, projectID, directory, title, time.created/updated
  * Messages have: id, sessionID, role (user|assistant), time, agent, model {providerID, modelID}, tokens, cost
@@ -21,7 +25,7 @@ import { Session, SessionRequest } from './types';
 import { assertTrustedPath, createRequest, createSession, detectDevcontainerFromRequests } from './parser-shared';
 import { canonicalizeReasoningEffort, extractReasoningEffortFromModelId } from './helpers';
 
-interface OcSession {
+export interface OcSession {
   id: string;
   slug?: string;
   version?: string;
@@ -31,7 +35,7 @@ interface OcSession {
   time?: { created?: number; updated?: number };
 }
 
-interface OcMessage {
+export interface OcMessage {
   id: string;
   sessionID: string;
   role: string;
@@ -49,7 +53,7 @@ interface OcMessage {
   model?: { providerID?: string; modelID?: string };
 }
 
-interface OcPart {
+export interface OcPart {
   id: string;
   sessionID: string;
   messageID: string;
@@ -125,14 +129,73 @@ function getOpenCodeUserText(msg: OcMessage, partsByMsg: Map<string, OcPart[]>):
   return userTextFromParts || msg.summary?.title || '';
 }
 
-function findAssistantMessage(messages: OcMessage[], startIndex: number, parentId: string): OcMessage | null {
-  for (let i = startIndex; i < messages.length; i++) {
-    const candidate = messages[i];
-    if (candidate.role === 'assistant' && candidate.parentID === parentId) return candidate;
+function findAssistantMessages(rawMessages: OcMessage[], startIndex: number): OcMessage[] {
+  const assistants: OcMessage[] = [];
+  for (let i = startIndex; i < rawMessages.length; i++) {
+    const candidate = rawMessages[i];
+    if (candidate.role === 'user') break;
+    if (candidate.role === 'assistant') assistants.push(candidate);
   }
+  return assistants;
+}
 
-  const next = messages[startIndex];
-  return next?.role === 'assistant' ? next : null;
+function mergeAssistantData(target: OpenCodeAssistantData, source: OpenCodeAssistantData): void {
+  if (source.responseText) {
+    target.responseText = target.responseText
+      ? `${target.responseText}\n${source.responseText}`
+      : source.responseText;
+  }
+  target.toolsUsed.push(...source.toolsUsed);
+  target.editedFiles.push(...source.editedFiles);
+  target.referencedFiles.push(...source.referencedFiles);
+  if (source.modelId) target.modelId = source.modelId;
+  if (source.lastTs && (!target.lastTs || source.lastTs > target.lastTs)) target.lastTs = source.lastTs;
+  if (source.totalElapsed != null) {
+    target.totalElapsed = target.totalElapsed == null
+      ? source.totalElapsed
+      : Math.max(target.totalElapsed, source.totalElapsed);
+  }
+  if (!source.tokenSource) return;
+  if (!target.tokenSource) {
+    target.tokenSource = {
+      input: source.tokenSource.input ?? 0,
+      output: source.tokenSource.output ?? 0,
+      cache: {
+        read: source.tokenSource.cache?.read ?? 0,
+        write: source.tokenSource.cache?.write ?? 0,
+      },
+    };
+    return;
+  }
+  target.tokenSource.input = (target.tokenSource.input ?? 0) + (source.tokenSource.input ?? 0);
+  target.tokenSource.output = (target.tokenSource.output ?? 0) + (source.tokenSource.output ?? 0);
+  target.tokenSource.cache = {
+    read: (target.tokenSource.cache?.read ?? 0) + (source.tokenSource.cache?.read ?? 0),
+    write: (target.tokenSource.cache?.write ?? 0) + (source.tokenSource.cache?.write ?? 0),
+  };
+}
+
+function collectAssistantTurn(
+  rawMessages: OcMessage[],
+  startIndex: number,
+  partsByMsg: Map<string, OcPart[]>,
+  userTs: number | null,
+  lastTs: number | null,
+): OpenCodeAssistantData {
+  const data: OpenCodeAssistantData = {
+    responseText: '',
+    toolsUsed: [],
+    editedFiles: [],
+    referencedFiles: [],
+    modelId: '',
+    totalElapsed: null,
+    lastTs,
+    tokenSource: null,
+  };
+  for (const assistantMsg of findAssistantMessages(rawMessages, startIndex)) {
+    mergeAssistantData(data, collectAssistantData(assistantMsg, partsByMsg, userTs, data.lastTs));
+  }
+  return data;
 }
 
 function applyOpenCodePart(part: OcPart, data: Pick<OpenCodeAssistantData, 'toolsUsed' | 'editedFiles' | 'referencedFiles'>, textParts: string[]): void {
@@ -261,31 +324,104 @@ function buildOpenCodeRequest(
   });
 }
 
-function parseOpenCodeSession(rawSession: OcSession, storageDir: string): Session | null {
-  if (!rawSession.id) return null;
+export function sessionFromDbRow(row: {
+  id: string;
+  project_id?: string;
+  slug?: string;
+  directory?: string;
+  title?: string;
+  version?: string;
+  time_created?: number;
+  time_updated?: number;
+}): OcSession {
+  return {
+    id: row.id,
+    slug: row.slug,
+    version: row.version,
+    projectID: row.project_id,
+    directory: row.directory,
+    title: row.title,
+    time: {
+      created: row.time_created,
+      updated: row.time_updated,
+    },
+  };
+}
 
-  const msgDir = path.join(storageDir, 'message', rawSession.id);
-  const rawMessages = readAllJsonInDir<OcMessage>(msgDir);
-  rawMessages.sort((a, b) => (a.time?.created || 0) - (b.time?.created || 0));
-  if (rawMessages.length === 0) return null;
+export function messageFromDbRow(row: {
+  id: string;
+  session_id: string;
+  time_created?: number;
+  time_updated?: number;
+  data: string;
+}): OcMessage {
+  const data = JSON.parse(row.data) as Record<string, unknown>;
+  const model = data.model as { providerID?: string; modelID?: string } | undefined;
+  return {
+    id: row.id,
+    sessionID: row.session_id,
+    role: String(data.role || ''),
+    time: (data.time as OcMessage['time']) ?? { created: row.time_created, completed: row.time_updated },
+    parentID: typeof data.parentID === 'string' ? data.parentID : undefined,
+    modelID: typeof data.modelID === 'string' ? data.modelID : model?.modelID,
+    providerID: typeof data.providerID === 'string' ? data.providerID : model?.providerID,
+    mode: typeof data.mode === 'string' ? data.mode : undefined,
+    agent: typeof data.agent === 'string' ? data.agent : undefined,
+    cost: typeof data.cost === 'number' ? data.cost : undefined,
+    tokens: data.tokens as OcMessage['tokens'],
+    finish: typeof data.finish === 'string' ? data.finish : undefined,
+    summary: data.summary as OcMessage['summary'],
+    variant: typeof data.variant === 'string' ? data.variant : undefined,
+    model,
+  };
+}
 
-  const partsByMsg = indexPartsByMessage(rawMessages, storageDir);
+export function partFromDbRow(row: {
+  id: string;
+  message_id: string;
+  session_id: string;
+  data: string;
+}): OcPart {
+  const data = JSON.parse(row.data) as Record<string, unknown>;
+  return {
+    id: row.id,
+    sessionID: row.session_id,
+    messageID: row.message_id,
+    type: String(data.type || ''),
+    text: typeof data.text === 'string' ? data.text : undefined,
+    tool: typeof data.tool === 'string' ? data.tool : undefined,
+    callID: typeof data.callID === 'string' ? data.callID : undefined,
+    state: data.state as OcPart['state'],
+    tokens: data.tokens as OcPart['tokens'],
+    cost: typeof data.cost === 'number' ? data.cost : undefined,
+    reason: typeof data.reason === 'string' ? data.reason : undefined,
+  };
+}
+
+export function buildOpenCodeSessionFromRecords(
+  rawSession: OcSession,
+  rawMessages: OcMessage[],
+  partsByMsg: Map<string, OcPart[]>,
+): Session | null {
+  if (!rawSession.id || rawMessages.length === 0) return null;
+
+  const sortedMessages = [...rawMessages].sort((a, b) => (a.time?.created || 0) - (b.time?.created || 0));
   const { wsId, wsName } = getOpenCodeWorkspace(rawSession);
   const requests: SessionRequest[] = [];
   let firstTs: number | null = null;
   let lastTs: number | null = null;
 
-  for (let i = 0; i < rawMessages.length; i++) {
-    const msg = rawMessages[i];
+  for (let i = 0; i < sortedMessages.length; i++) {
+    const msg = sortedMessages[i];
     if (msg.role !== 'user') continue;
 
     const userTs = msg.time?.created || null;
     if (userTs && (!firstTs || userTs < firstTs)) firstTs = userTs;
 
-    const assistantMsg = findAssistantMessage(rawMessages, i + 1, msg.id);
-    const assistantData = collectAssistantData(assistantMsg, partsByMsg, userTs, lastTs);
+    const assistantData = collectAssistantTurn(sortedMessages, i + 1, partsByMsg, userTs, lastTs);
     lastTs = assistantData.lastTs;
     requests.push(buildOpenCodeRequest(msg, partsByMsg, assistantData, userTs));
+    i = i + findAssistantMessages(sortedMessages, i + 1).length;
   }
 
   if (requests.length === 0) return null;
@@ -294,6 +430,7 @@ function parseOpenCodeSession(rawSession: OcSession, storageDir: string): Sessio
     sessionId: rawSession.id,
     workspaceId: wsId,
     workspaceName: wsName,
+    workspaceRootPath: rawSession.directory,
     location: 'terminal',
     harness: 'OpenCode',
     creationDate: firstTs || (rawSession.time?.created || null),
@@ -303,7 +440,18 @@ function parseOpenCodeSession(rawSession: OcSession, storageDir: string): Sessio
   });
 }
 
-export function parseOpenCodeSessions(storageDir: string): Session[] {
+function parseOpenCodeSession(rawSession: OcSession, storageDir: string): Session | null {
+  if (!rawSession.id) return null;
+
+  const msgDir = path.join(storageDir, 'message', rawSession.id);
+  const rawMessages = readAllJsonInDir<OcMessage>(msgDir);
+  if (rawMessages.length === 0) return null;
+
+  const partsByMsg = indexPartsByMessage(rawMessages, storageDir);
+  return buildOpenCodeSessionFromRecords(rawSession, rawMessages, partsByMsg);
+}
+
+export function parseOpenCodeSessionsFromJsonStorage(storageDir: string): Session[] {
   const sessions: Session[] = [];
   const sessionDir = path.join(storageDir, 'session', 'global');
   const rawSessions = readAllJsonInDir<OcSession>(sessionDir);
@@ -314,4 +462,9 @@ export function parseOpenCodeSessions(storageDir: string): Session[] {
   }
 
   return sessions;
+}
+
+/** @deprecated Use parseOpenCodeSessionsFromJsonStorage */
+export function parseOpenCodeSessions(storageDir: string): Session[] {
+  return parseOpenCodeSessionsFromJsonStorage(storageDir);
 }

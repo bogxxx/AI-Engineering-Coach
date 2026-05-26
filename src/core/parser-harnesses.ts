@@ -6,10 +6,13 @@
 /* External harness collection registry for parser orchestration. */
 
 import * as fs from 'fs';
+import * as path from 'path';
 import { Workspace, Session } from './types';
 import { findClaudeDirs, parseClaudeSessions, parseClaudeSessionsAsync } from './parser-claude';
 import { findCodexDirs, parseCodexSessions } from './parser-codex';
-import { findOpenCodeDirs, parseOpenCodeSessions } from './parser-opencode';
+import { findOpenCodeDirs, parseOpenCodeSessionsFromJsonStorage } from './parser-opencode';
+import { parseOpenCodeSessionsFromDb, parseOpenCodeSessionsFromDbSync, getOpenCodeDbPath } from './parser-opencode-sqlite';
+import { findCursorProjectsDirs, parseCursorSessions } from './parser-cursor';
 
 type WorkspaceMap = Map<string, Workspace>;
 
@@ -64,8 +67,41 @@ const EXTERNAL_HARNESSES: ExternalHarnessCollector[] = [
   {
     name: 'OpenCode',
     collectSync(ctx) {
+      const dbSessions = parseOpenCodeSessionsFromDbSync();
+      if (dbSessions.length > 0) {
+        for (const session of dbSessions) addSession(ctx.workspaces, ctx.sessions, session, getOpenCodeDbPath());
+        return;
+      }
       for (const ocDir of findOpenCodeDirs()) {
-        for (const session of parseOpenCodeSessions(ocDir)) addSession(ctx.workspaces, ctx.sessions, session, ocDir);
+        for (const session of parseOpenCodeSessionsFromJsonStorage(ocDir)) {
+          addSession(ctx.workspaces, ctx.sessions, session, ocDir);
+        }
+      }
+    },
+    async collectAsync(ctx, reportDetail) {
+      reportDetail?.('Reading OpenCode SQLite database');
+      let sessions = parseOpenCodeSessionsFromDbSync();
+      if (sessions.length === 0) {
+        sessions = await parseOpenCodeSessionsFromDb();
+      }
+      if (sessions.length > 0) {
+        for (const session of sessions) addSession(ctx.workspaces, ctx.sessions, session, getOpenCodeDbPath());
+        return;
+      }
+      for (const ocDir of findOpenCodeDirs()) {
+        for (const session of parseOpenCodeSessionsFromJsonStorage(ocDir)) {
+          addSession(ctx.workspaces, ctx.sessions, session, ocDir);
+        }
+      }
+    },
+  },
+  {
+    name: 'Cursor',
+    collectSync(ctx) {
+      for (const projectsDir of findCursorProjectsDirs()) {
+        for (const session of parseCursorSessions(projectsDir)) {
+          addSession(ctx.workspaces, ctx.sessions, session, projectsDir);
+        }
       }
     },
   },
@@ -93,7 +129,48 @@ export const EXTERNAL_HARNESS_SET = new Set<string>([
   'Claude',
   'Codex',
   'OpenCode',
+  'Cursor',
 ]);
+
+function dirHasFiles(dir: string, predicate: (name: string) => boolean): boolean {
+  try {
+    return fs.readdirSync(dir).some(predicate);
+  } catch {
+    return false;
+  }
+}
+
+/** True when Cursor, OpenCode, Claude, or Codex session data exists on disk. */
+export function hasExternalHarnessSources(): boolean {
+  for (const projectsDir of findCursorProjectsDirs()) {
+    let projectDirs: string[];
+    try {
+      projectDirs = fs.readdirSync(projectsDir);
+    } catch {
+      continue;
+    }
+    for (const projectSlug of projectDirs) {
+      const transcripts = path.join(projectsDir, projectSlug, 'agent-transcripts');
+      if (dirHasFiles(transcripts, name => !name.startsWith('.'))) return true;
+    }
+  }
+
+  if (fs.existsSync(getOpenCodeDbPath())) return true;
+
+  for (const ocDir of findOpenCodeDirs()) {
+    if (fs.existsSync(path.join(ocDir, 'session', 'global'))) return true;
+  }
+
+  for (const claudeDir of findClaudeDirs()) {
+    if (dirHasFiles(claudeDir, name => name.endsWith('.jsonl'))) return true;
+  }
+
+  for (const codexDir of findCodexDirs()) {
+    if (fs.existsSync(codexDir)) return true;
+  }
+
+  return false;
+}
 
 export async function collectExternalHarnessesAsync(
   workspaces: WorkspaceMap,

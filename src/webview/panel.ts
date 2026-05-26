@@ -8,7 +8,7 @@
 import * as vscode from 'vscode';
 import { Analyzer } from '../core/analyzer';
 import { saveSidebarStats } from '../core/cache';
-import { clearCache, findLogsDirs, parseAllLogsViaWorker, ParseResult } from '../core/parser';
+import { clearCache, findLogsDirs, hasAnySessionSources, parseAllLogsViaWorker, ParseResult } from '../core/parser';
 import { runtimeDebug } from '../core/runtime-debug';
 import { WebviewMessage } from '../core/types';
 import { panelCache } from './panel-cache';
@@ -203,11 +203,15 @@ export class DashboardPanel {
       if (this.disposed) return;
 
       const dirs = findLogsDirs();
-      runtimeDebug('panel', 'logs-dirs-found', `count=${dirs.length}`);
-      if (dirs.length === 0) {
-        runtimeDebug('panel', 'loadData-no-dirs');
+      runtimeDebug('panel', 'logs-dirs-found', `count=${dirs.length} external=${hasAnySessionSources()}`);
+      if (!hasAnySessionSources()) {
+        runtimeDebug('panel', 'loadData-no-sources');
         if (!this.disposed) {
-          try { this.panel.webview.html = getErrorHtml('No Copilot chat log directories found.'); } catch { /* disposed */ }
+          try {
+            this.panel.webview.html = getErrorHtml(
+              'No AI session data found. Supported sources: Cursor, OpenCode, VS Code Copilot, Claude Code, Codex, Xcode.',
+            );
+          } catch { /* disposed */ }
         }
         return;
       }
@@ -216,6 +220,16 @@ export class DashboardPanel {
       if (this.disposed) return;
       runtimeDebug('panel', 'parse-complete', `sessions=${this.parseResult.sessions.length} workspaces=${this.parseResult.workspaces.size}`);
       const sessionCount = this.parseResult.sessions.length;
+      if (sessionCount === 0) {
+        if (!this.disposed) {
+          try {
+            this.panel.webview.html = getErrorHtml(
+              'Session directories were found but no readable sessions were parsed. Try AI Engineer Coach: Reload Data.',
+            );
+          } catch { /* disposed */ }
+        }
+        return;
+      }
 
       sendProgress({ phase: 4, detail: 'Building analyzer', pct: 90, sessions: sessionCount });
       await flush();

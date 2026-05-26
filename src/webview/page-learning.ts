@@ -42,13 +42,13 @@ async function generateQuizCached(
     packageDeps: string[];
     selectedProjects: string[];
   },
-): Promise<{ questions: QuizQuestion[]; fromCache: boolean }> {
+): Promise<{ questions: QuizQuestion[]; fromCache: boolean; source?: 'llm' | 'builtin' }> {
   const key = quizCacheKey(context.languages, context.focusConcepts, context.difficulty, context.selectedLanguage);
   if (state.cachedQuizKey === key && state.cachedQuizzes.length > 0) {
     return { questions: state.cachedQuizzes, fromCache: true };
   }
 
-  const result = await rpc<{ questions: QuizQuestion[] }>('generateLearningQuiz', {
+  const result = await rpc<{ questions: QuizQuestion[]; source?: 'llm' | 'builtin' }>('generateLearningQuiz', {
     languages: context.languages,
     topics: context.focusConcepts,
     difficulty: context.difficulty,
@@ -67,7 +67,18 @@ async function generateQuizCached(
   state.cachedQuizzes = questions;
   state.cachedQuizKey = key;
   saveState(state);
-  return { questions, fromCache: false };
+  return { questions, fromCache: false, source: result.source };
+}
+
+function showLearningSourceNote(sectionSelector: string, source?: 'llm' | 'builtin'): void {
+  const section = document.querySelector(sectionSelector);
+  section?.querySelector('.learn-builtin-note')?.remove();
+  if (source !== 'builtin') return;
+  const note = document.createElement('p');
+  note.className = 'learn-builtin-note text-muted';
+  note.style.cssText = 'font-size:11px;margin:0 0 8px 0;';
+  note.textContent = 'Using built-in challenges (install GitHub Copilot for personalized content).';
+  section?.querySelector('.learn-section-head')?.insertAdjacentElement('afterend', note);
 }
 
 /* ── Partial DOM Update Helpers ───────────────────────────────────── */
@@ -470,7 +481,7 @@ async function loadCodeReviewAsync(container: HTMLElement, state: LearningState)
     </div>`, el);
 
   try {
-    const result = await rpc<{ rounds: CodeComparisonRound[] }>('generateCodeComparison', {
+    const result = await rpc<{ rounds: CodeComparisonRound[]; source?: 'llm' | 'builtin' }>('generateCodeComparison', {
       languages: langs,
       packageDeps: _pageCtx.deps,
       difficulty: state.currentDifficulty,
@@ -484,6 +495,7 @@ async function loadCodeReviewAsync(container: HTMLElement, state: LearningState)
       saveState(state);
       render(renderCodeReviewRound(rounds, 0, state), el);
       wireCodeReviewHandlers(container, rounds, 0, state);
+      showLearningSourceNote('#cr-section', result.source);
     } else {
       render(html`<p class="text-muted">No comparisons generated.</p><button class="btn btn-secondary btn-sm" id="cr-retry-btn">Retry</button>`, el);
       document.getElementById('cr-retry-btn')?.addEventListener('click', () => {
@@ -590,7 +602,7 @@ async function loadQuizAsync(container: HTMLElement, state: LearningState): Prom
     </div>`, quizEl);
 
   try {
-    const { questions } = await generateQuizCached(state, {
+    const { questions, source } = await generateQuizCached(state, {
       languages: quizLangs,
       focusConcepts: focusNames,
       difficulty: state.currentDifficulty,
@@ -601,6 +613,7 @@ async function loadQuizAsync(container: HTMLElement, state: LearningState): Prom
     if (questions.length > 0) {
       render(renderQuiz(questions, 0), quizEl);
       wireQuizHandlers(container, questions, 0, state, _pageCtx.deps);
+      showLearningSourceNote('#quiz-section', source);
     } else {
       render(html`<p class="text-muted">No quizzes generated.</p><button class="btn btn-secondary btn-sm" id="quiz-retry-btn">Generate</button>`, quizEl);
       document.getElementById('quiz-retry-btn')?.addEventListener('click', () => {

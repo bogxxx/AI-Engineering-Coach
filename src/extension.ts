@@ -8,7 +8,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { Analyzer } from './core/analyzer';
-import { findLogsDirs, parseAllLogsViaWorker } from './core/parser';
+import { findLogsDirs, hasAnySessionSources, parseAllLogsViaWorker } from './core/parser';
 import { getRuntimeDebugLogPath, installRuntimeDebugHooks, runtimeDebug, setOutputHook } from './core/runtime-debug';
 import { loadAllRuleLayersAsync, loadAllMetricLayersAsync, setDefaultTrustGate } from './core/rule-loader';
 import {
@@ -33,8 +33,8 @@ function loadPanelModule(): Promise<PanelModule> {
 
 async function exportSummaryFromLogs(): Promise<void> {
   const dirs = findLogsDirs();
-  if (dirs.length === 0) {
-    vscode.window.showErrorMessage('No AI coding session log directories found.');
+  if (!hasAnySessionSources()) {
+    vscode.window.showErrorMessage('No AI session data found (Cursor, OpenCode, VS Code Copilot, Claude, Codex, Xcode).');
     return;
   }
 

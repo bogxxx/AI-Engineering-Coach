@@ -42,7 +42,7 @@ const parseWorkerBuild = esbuild.build({
   format: 'cjs',
   outfile: 'dist/parse-worker.js',
   sourcemap: true,
-  external: ['vscode'],
+  external: ['vscode', 'node:sqlite'],
 });
 
 // Bundle the cache write worker (writes cache data to disk off the main thread)
@@ -110,6 +110,12 @@ function bundleCss() {
 
 bundleCss();
 
+// OpenCode SQLite reader needs the wasm binary beside parse-worker.js at runtime.
+const sqlWasmSrc = 'node_modules/sql.js/dist/sql-wasm.wasm';
+if (fs.existsSync(sqlWasmSrc)) {
+  fs.copyFileSync(sqlWasmSrc, path.join('dist', 'sql-wasm.wasm'));
+}
+
 // Copy sidebar CSS separately (sidebar is its own webview)
 fs.copyFileSync('src/webview/styles-sidebar.css', path.join(webviewDist, 'sidebar.css'));
 
@@ -144,7 +150,7 @@ if (isWatch) {
     format: 'cjs',
     outfile: 'dist/parse-worker.js',
     sourcemap: true,
-    external: ['vscode'],
+    external: ['vscode', 'node:sqlite'],
   });
   const ctx5 = await esbuild.context({
     entryPoints: ['src/core/cache-write-worker.ts'],

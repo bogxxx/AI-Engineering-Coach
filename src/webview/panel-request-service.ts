@@ -15,6 +15,7 @@ import { exportSummaryFiles } from '../summary-export-vscode';
 import {
   callLlm,
   callLlmJson,
+  isLlmAvailable,
   SCHEMA_CATALOG_PICKS,
   SCHEMA_CODE_REVIEW,
   SCHEMA_CONTEXT_REVIEW,
@@ -24,6 +25,8 @@ import {
   SCHEMA_TRIAGE,
 } from './panel-llm';
 import { getCatalogItems } from './panel-catalog';
+import { triageCatalogHeuristic, triageSkillsHeuristic } from '../core/skill-triage-heuristic';
+import { generateBuiltinCodeComparison, generateBuiltinQuiz, QuizDifficulty } from '../core/learning-fallback';
 import { validateDateFilter } from './panel-rpc';
 import { isNumber, isOptionalString, isRecord, isString, postError, postEvent, postResponse, RequestMessage } from './panel-shared';
 
@@ -352,6 +355,14 @@ ${skillDraft}`;
 
   private async handleGenerateLearningQuiz(msg: RequestMessage): Promise<void> {
     const context = this.getQuizRequestContext(msg);
+    const seenTopics = [...context.solvedSamples, ...context.failedSamples, ...context.reviewTopics];
+
+    if (!(await isLlmAvailable())) {
+      const questions = generateBuiltinQuiz(context.languages, context.difficulty, seenTopics);
+      postResponse(this.webview, msg.id, { questions, source: 'builtin' });
+      return;
+    }
+
     const systemPrompt = this.buildQuizSystemPrompt(context);
     const userPrompt = this.buildQuizUserPrompt(context);
 
@@ -362,8 +373,18 @@ ${skillDraft}`;
       ], SCHEMA_QUIZ);
 
       const validated = this.normalizeQuizQuestions(response, context.difficulty);
-      postResponse(this.webview, msg.id, { questions: validated });
+      if (validated.length === 0) {
+        const questions = generateBuiltinQuiz(context.languages, context.difficulty, seenTopics);
+        postResponse(this.webview, msg.id, { questions, source: 'builtin' });
+        return;
+      }
+      postResponse(this.webview, msg.id, { questions: validated, source: 'llm' });
     } catch (error: unknown) {
+      if (error instanceof Error && /No language model available/i.test(error.message)) {
+        const questions = generateBuiltinQuiz(context.languages, context.difficulty, seenTopics);
+        postResponse(this.webview, msg.id, { questions, source: 'builtin' });
+        return;
+      }
       postError(this.webview, msg.id, error instanceof Error ? error.message : 'Quiz generation failed. Please try again.');
     }
   }
@@ -419,6 +440,14 @@ Difficulty: ${difficulty}
 
 Generate 3 code comparison rounds for this developer's ecosystem. Mix the categories.`;
 
+    const difficultyLevel = (['easy', 'medium', 'hard'].includes(difficulty) ? difficulty : 'medium') as QuizDifficulty;
+
+    if (!(await isLlmAvailable())) {
+      const rounds = generateBuiltinCodeComparison(languages, difficultyLevel, seenTopics);
+      postResponse(this.webview, msg.id, { rounds, source: 'builtin' });
+      return;
+    }
+
     try {
       const response = await callLlmJson<{ items: Array<{
         snippetA: string;
@@ -455,8 +484,18 @@ Generate 3 code comparison rounds for this developer's ecosystem. Mix the catego
           language: String(round.language || languages[0] || 'code'),
         }));
 
-      postResponse(this.webview, msg.id, { rounds: validated });
+      if (validated.length === 0) {
+        const rounds = generateBuiltinCodeComparison(languages, difficultyLevel, seenTopics);
+        postResponse(this.webview, msg.id, { rounds, source: 'builtin' });
+        return;
+      }
+      postResponse(this.webview, msg.id, { rounds: validated, source: 'llm' });
     } catch (error: unknown) {
+      if (error instanceof Error && /No language model available/i.test(error.message)) {
+        const rounds = generateBuiltinCodeComparison(languages, difficultyLevel, seenTopics);
+        postResponse(this.webview, msg.id, { rounds, source: 'builtin' });
+        return;
+      }
       postError(this.webview, msg.id, error instanceof Error ? error.message : 'Code comparison generation failed. Please try again.');
     }
   }
@@ -675,6 +714,12 @@ Respond with a JSON object: {"items":[{"title":"...","url":"https://...","type":
       };
     });
 
+    if (!(await isLlmAvailable())) {
+      const triaged = triageSkillsHeuristic(clusterSummaries);
+      postResponse(this.webview, msg.id, { triaged, source: 'heuristic' });
+      return;
+    }
+
     const context = this.getUserContext();
     const systemPrompt = `You are an expert at identifying repeatable activities in a developer's AI coding assistant usage.
 
@@ -722,8 +767,13 @@ Here are the top ${clusterSummaries.length} groups of similar prompts this devel
         suggestedSkillName: item.suggestedSkillName ? String(item.suggestedSkillName) : null,
       }));
 
-      postResponse(this.webview, msg.id, { triaged: result });
+      postResponse(this.webview, msg.id, { triaged: result, source: 'llm' });
     } catch (error: unknown) {
+      if (error instanceof Error && /No language model available/i.test(error.message)) {
+        const triaged = triageSkillsHeuristic(clusterSummaries);
+        postResponse(this.webview, msg.id, { triaged, source: 'heuristic' });
+        return;
+      }
       postError(this.webview, msg.id, error instanceof Error ? error.message : 'AI triage failed');
     }
   }
@@ -799,30 +849,41 @@ Max 5 items. If fewer genuinely match, return fewer. If NOTHING matches well, re
 Full catalog (${candidates.length} items):
 ${JSON.stringify(candidates)}`;
 
+    const enrichPicks = (picks: Array<{ id: string; reason: string }>) => picks.map(pick => {
+      const rawItem = itemsRaw.find(item => isRecord(item) && item.id === pick.id);
+      const raw = isRecord(rawItem) ? rawItem : undefined;
+      return {
+        id: pick.id,
+        kind: toText(raw?.kind),
+        title: toText(raw?.title),
+        description: toText(raw?.description),
+        category: toText(raw?.category),
+        path: toText(raw?.path),
+        url: toText(raw?.url),
+        relevanceScore: 100,
+        matchReasons: [pick.reason],
+      };
+    }).filter(item => item.title);
+
+    if (!(await isLlmAvailable())) {
+      const picks = triageCatalogHeuristic(candidates, clusterContext);
+      postResponse(this.webview, msg.id, { items: enrichPicks(picks), source: 'heuristic' });
+      return;
+    }
+
     try {
       const response = await callLlmJson<{ items: Array<{ id: string; reason: string }> }>([
         vscode.LanguageModelChatMessage.User(systemPrompt),
         vscode.LanguageModelChatMessage.User(userPrompt),
       ], SCHEMA_CATALOG_PICKS);
       const picks = Array.isArray(response) ? response as unknown as typeof response['items'] : response.items ?? [];
-      const enriched = picks.map(pick => {
-        const rawItem = itemsRaw.find(item => isRecord(item) && item.id === pick.id);
-        const raw = isRecord(rawItem) ? rawItem : undefined;
-        return {
-          id: pick.id,
-          kind: toText(raw?.kind),
-          title: toText(raw?.title),
-          description: toText(raw?.description),
-          category: toText(raw?.category),
-          path: toText(raw?.path),
-          url: toText(raw?.url),
-          relevanceScore: 100,
-          matchReasons: [pick.reason],
-        };
-      }).filter(item => item.title);
-
-      postResponse(this.webview, msg.id, { items: enriched });
+      postResponse(this.webview, msg.id, { items: enrichPicks(picks), source: 'llm' });
     } catch (error: unknown) {
+      if (error instanceof Error && /No language model available/i.test(error.message)) {
+        const picks = triageCatalogHeuristic(candidates, clusterContext);
+        postResponse(this.webview, msg.id, { items: enrichPicks(picks), source: 'heuristic' });
+        return;
+      }
       postError(this.webview, msg.id, error instanceof Error ? error.message : 'AI triage failed');
     }
   }

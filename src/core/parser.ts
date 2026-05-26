@@ -14,7 +14,7 @@ import { getMemoryCache, setMemoryCache, computeDirMetasAsync, loadCacheData, sa
 import type { DirMetas, ParseResult, SessionSource } from './cache';
 import { findVsCodeDirs, scanVsCodeDirs, processWorkspaceEntry, processWorkspaceEntryAsync, harnessFromPath } from './parser-vscode';
 import { findXcodeDirs, parseXcodeDatabases, parseXcodeDatabasesAsync } from './parser-xcode';
-import { collectExternalHarnessesAsync, collectExternalHarnessesSync, EXTERNAL_HARNESS_SET } from './parser-harnesses';
+import { collectExternalHarnessesAsync, collectExternalHarnessesSync, EXTERNAL_HARNESS_SET, hasExternalHarnessSources } from './parser-harnesses';
 import { warnCore } from './log';
 
 export type { ParseResult };
@@ -100,6 +100,10 @@ function pct(phase: number, intraPhase: number): number {
 
 export function findLogsDirs(): string[] {
   return [...findVsCodeDirs(), ...findXcodeDirs()];
+}
+
+export function hasAnySessionSources(): boolean {
+  return findLogsDirs().length > 0 || hasExternalHarnessSources();
 }
 
 function partitionDirs(logsDirs: string[]): { vsCodeDirs: string[]; xcodeDirs: string[] } {

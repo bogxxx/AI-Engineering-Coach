@@ -56,6 +56,9 @@ function getTrustedRoots(): string[] {
     if (home) roots.push(path.resolve(home, '.config', 'Code - Insiders'));
   }
 
+  // Cursor IDE session logs
+  if (home) roots.push(path.resolve(home, '.cursor'));
+
   // Standard session log locations
   if (home) {
     roots.push(path.resolve(home, '.copilot'));
@@ -63,6 +66,13 @@ function getTrustedRoots(): string[] {
     roots.push(path.resolve(home, '.codex'));
     roots.push(path.resolve(home, '.local', 'share', 'opencode'));
     roots.push(path.resolve(home, '.config', 'github-copilot'));
+  }
+
+  if (process.platform === 'win32') {
+    const appdata = process.env.APPDATA || '';
+    if (appdata) roots.push(path.resolve(appdata, 'Cursor'));
+  } else if (process.platform === 'darwin') {
+    if (home) roots.push(path.resolve(home, 'Library', 'Application Support', 'Cursor'));
   }
 
   // OS temp directory (used by tests and VS Code temp storage)
