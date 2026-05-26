@@ -63,7 +63,70 @@ Commands: `Ctrl+Shift+P` → **AI Engineer Coach: Open Dashboard**
 | Learning quiz / Slop or Not | Built-in question bank | Personalized generation |
 | Context file review, rule AI draft | No | Yes |
 
-Install the [GitHub Copilot extension](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot) in Cursor for full AI features.
+Install the [GitHub Copilot extension](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot) in Cursor for full AI features — or configure an HTTP LLM backend (see below).
+
+## LLM API configuration
+
+The extension resolves an LLM backend using this priority chain:
+
+| Priority | Backend | How to configure |
+| --- | --- | --- |
+| 1 | GitHub Copilot LM | Install [Copilot extension](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot) — `vscode.lm.selectChatModels()` |
+| 2 | Stored API key | Command palette → **AI Engineer Coach: Configure LLM API Key** + set `aiEngineerCoach.llm.baseUrl` / `aiEngineerCoach.llm.model` in settings |
+| 3 | OpenCode config | Auto-detected from `~/.config/opencode/opencode.json` → `provider.openai` section |
+| 4 | Environment variable | `OPENAI_API_KEY`, `AZURE_OPENAI_API_KEY`, `AZURE_FOUNDRY_KEY`, or `CURSOR_OPENAI_API_KEY` |
+
+When none of the above are available, AI features fall back to heuristic/built-in content (the status bar shows "pattern matching").
+
+### OpenCode config (recommended for Azure Foundry)
+
+If you already use [OpenCode](https://opencode.ai/) with an Azure or OpenAI endpoint, the extension reads your existing config automatically. The expected structure:
+
+```jsonc
+// ~/.config/opencode/opencode.json  (Windows: %USERPROFILE%\.config\opencode\)
+{
+  "provider": {
+    "openai": {
+      "options": {
+        "baseURL": "https://<resource>.cognitiveservices.azure.com/openai/v1",
+        "apiKey": "{env:AZURE_FOUNDRY_KEY}"
+      },
+      "models": {
+        "gpt-5.4": { "name": "GPT-5.4 (Azure)" }
+      }
+    }
+  }
+}
+```
+
+**Important:** The extension reads only the `provider.openai` section. Anthropic or other providers are ignored for HTTP LLM calls.
+
+The `{env:VAR}` placeholder resolves from `process.env`. On Windows, if the extension host was started before the variable was set, the extension also reads user-level variables from the registry (`HKCU\Environment`) as a fallback — no Cursor restart required.
+
+### Manual API key (any OpenAI-compatible endpoint)
+
+1. `Ctrl+Shift+P` → **AI Engineer Coach: Configure LLM API Key** — paste your key
+2. In `settings.json`, set the endpoint and model:
+
+```jsonc
+{
+  "aiEngineerCoach.llm.baseUrl": "https://<resource>.cognitiveservices.azure.com/openai/v1",
+  "aiEngineerCoach.llm.model": "gpt-5.4"
+}
+```
+
+### Verifying LLM is active
+
+Open **Skill Finder** and click **Analyze**. The status line shows the active backend:
+
+- `"N skill opportunities found (OpenCode Azure LLM)"` — OpenCode config + Azure
+- `"N skill opportunities found (Cursor HTTP LLM)"` — stored/env key in Cursor
+- `"N skill opportunities found"` — Copilot LM API (VS Code)
+- `"Found N patterns (pattern matching — configure ...)"` — **heuristic fallback, LLM not active**
+
+### Disabling HTTP fallback
+
+Set `aiEngineerCoach.llm.httpFallback` to `false` in settings to disable all HTTP LLM calls (only Copilot LM will be used).
 
 ## Architecture (fork-specific)
 
@@ -89,6 +152,8 @@ Key modules:
 
 - `src/core/parser-cursor.ts` — Cursor JSONL agent transcripts
 - `src/core/parser-opencode-sqlite.ts` — OpenCode DB via `node:sqlite` / `sql.js`
+- `src/core/llm-opencode-config.ts` — OpenCode config reader + Windows registry env fallback
+- `src/core/llm-http.ts` — HTTP LLM chain (secret storage → OpenCode → env vars)
 - `src/core/skill-triage-heuristic.ts` — offline skill opportunity ranking
 - `src/core/learning-fallback.ts` — offline quiz and code-review rounds
 - `scripts/dev-install.ps1` — build, install VSIX, open Classic Cursor

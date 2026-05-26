@@ -3,9 +3,36 @@
  *  Licensed under the MIT License. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+
+const userEnvCache = new Map<string, string | undefined>();
+
+/**
+ * Read a user-level environment variable on Windows via the registry.
+ * Falls back gracefully on non-Windows or when the variable doesn't exist.
+ * Results are cached for the lifetime of the extension host.
+ */
+export function readUserEnvVar(name: string): string | undefined {
+  if (process.platform !== 'win32') return undefined;
+  if (userEnvCache.has(name)) return userEnvCache.get(name);
+
+  try {
+    const result = execSync(
+      `reg query "HKCU\\Environment" /v "${name}"`,
+      { encoding: 'utf8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'] },
+    );
+    const match = result.match(/REG_(?:SZ|EXPAND_SZ)\s+(.+)/);
+    const value = match?.[1]?.trim();
+    userEnvCache.set(name, value || undefined);
+    return value || undefined;
+  } catch {
+    userEnvCache.set(name, undefined);
+    return undefined;
+  }
+}
 
 export interface OpenCodeProviderOptions {
   baseURL?: string;
@@ -56,7 +83,7 @@ export function resolveOpenCodeSecret(value: string | undefined): string | undef
   const trimmed = value.trim();
   const match = trimmed.match(/^\{env:([A-Z0-9_]+)\}$/i) ?? trimmed.match(/^\$\{env:([A-Z0-9_]+)\}$/i);
   if (match?.[1]) {
-    return process.env[match[1]]?.trim() || undefined;
+    return process.env[match[1]]?.trim() || readUserEnvVar(match[1]) || undefined;
   }
   return trimmed || undefined;
 }

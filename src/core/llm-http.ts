@@ -5,7 +5,7 @@
 
 import { getLlmSecretStorage, LLM_API_KEY_SECRET } from './llm-context';
 import { isCursorIde, readCursorAuthTokens } from './llm-cursor-session';
-import { resolveOpenCodeHttpLlmConfig } from './llm-opencode-config';
+import { readUserEnvVar, resolveOpenCodeHttpLlmConfig } from './llm-opencode-config';
 
 export type LlmBackend = 'copilot' | 'cursor-http' | 'opencode-http' | 'openai-http' | 'none';
 
@@ -25,7 +25,7 @@ function trimTrailingSlash(url: string): string {
 
 function readEnvApiKey(): string | undefined {
   for (const name of ['OPENAI_API_KEY', 'AZURE_OPENAI_API_KEY', 'AZURE_FOUNDRY_KEY', 'CURSOR_OPENAI_API_KEY']) {
-    const value = process.env[name]?.trim();
+    const value = process.env[name]?.trim() || readUserEnvVar(name);
     if (value) return value;
   }
   return undefined;
